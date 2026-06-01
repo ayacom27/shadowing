@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>シャドーイング 音変化トレーナー</title>
+<style>
+  :root{
+    --orange:#E8821E;
+    --link:#2563eb; --del:#dc2626; --flap:#16a34a; --weak:#9333ea;
+    --bg:#fafafa; --gray:#666; --flapgray:#9aa0a6;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+    background:var(--bg);color:#222;line-height:1.6;}
+  header{background:var(--orange);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:20;
+    box-shadow:0 2px 6px rgba(0,0,0,.15);}
+  header h1{margin:0;font-size:17px;font-weight:700;}
+  header p{margin:2px 0 0;font-size:11px;opacity:.9;}
+  .wrap{max-width:640px;margin:0 auto;padding:14px;}
+  textarea,input[type=text]{width:100%;border:1.5px solid #ccc;border-radius:10px;padding:12px;
+    font-size:15px;font-family:inherit;}
+  textarea{min-height:120px;resize:vertical;}
+  button{font-family:inherit;cursor:pointer;border:none;border-radius:10px;font-weight:700;}
+  .btn-primary{background:var(--orange);color:#fff;padding:13px 18px;font-size:15px;width:100%;}
+  .btn-primary:active{opacity:.85;}
+  .btn-ghost{background:#fff;border:1.5px solid var(--orange);color:var(--orange);padding:10px 14px;font-size:14px;}
+  .card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+
+  .tabs{display:flex;gap:8px;margin:14px 0 10px;}
+  .tabs button{flex:1;padding:10px;background:#eee;color:#555;font-size:13px;border-radius:10px;}
+  .tabs button.active{background:var(--orange);color:#fff;}
+
+  /* 凡例（記号＋タップでルール） */
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0;}
+  .legend .lg{flex:1;min-width:70px;display:flex;flex-direction:column;align-items:center;gap:2px;
+    background:#fff;border:1.5px solid #e3e3e3;border-radius:10px;padding:8px 4px;cursor:pointer;}
+  .legend .lg .sym{font-size:22px;font-weight:800;line-height:1;}
+  .legend .lg .nm{font-size:11px;color:#555;}
+  .rulebox{background:#fff7ec;border:1.5px solid var(--orange);border-radius:10px;padding:12px;margin:6px 0;font-size:13px;display:none;}
+  .rulebox.show{display:block;}
+  .rulebox b{color:var(--orange);}
+  .rulebox .ex{color:var(--gray);font-size:12px;margin-top:4px;}
+
+  /* ツールバー（各チャンクの上） */
+  .toolbar{padding:0 0 10px;display:flex;gap:5px;flex-wrap:wrap;}
+  .tbtn{flex:1;min-width:54px;padding:9px 3px;font-size:11px;border:1.5px solid #ddd;background:#fff;color:#444;border-radius:10px;position:relative;user-select:none;}
+  .tbtn .s{font-size:16px;display:block;margin-bottom:1px;}
+  .tbtn.hasrule::after{content:"?";position:absolute;top:3px;right:5px;font-size:9px;color:#bbb;}
+
+  /* ルールのポップアップ */
+  .popup-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;
+    align-items:center;justify-content:center;padding:24px;}
+  .popup-overlay.show{display:flex;}
+  .popup-card{background:#fff;border-radius:16px;padding:20px;max-width:340px;width:100%;
+    box-shadow:0 10px 40px rgba(0,0,0,.3);}
+  .popup-card .ttl{font-size:20px;font-weight:800;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+  .popup-card .ttl .sym{font-size:26px;}
+  .popup-card .rl{font-size:14px;line-height:1.7;}
+  .popup-card .ex{margin-top:10px;font-size:13px;color:var(--gray);background:#f7f7f7;border-radius:10px;padding:10px;}
+  .popup-card .cl{margin-top:14px;text-align:center;}
+  .popup-card .cl button{background:var(--orange);color:#fff;padding:9px 22px;font-size:13px;}
+  .tbtn.active.t-link{background:var(--link);color:#fff;border-color:transparent;}
+  .tbtn.active.t-del{background:var(--del);color:#fff;border-color:transparent;}
+  .tbtn.active.t-flap{background:var(--flap);color:#fff;border-color:transparent;}
+  .tbtn.active.t-weak{background:var(--weak);color:#fff;border-color:transparent;}
+  .tbtn.active.t-erase{background:#555;color:#fff;border-color:transparent;}
+  .toolnote{font-size:11px;color:var(--gray);margin:2px 0 8px;}
+
+  .chunk-num{font-size:11px;color:var(--gray);font-weight:700;margin-bottom:8px;}
+  .chunk-text{font-size:25px;line-height:3;letter-spacing:.5px;}
+  .tok{position:relative;cursor:pointer;border-radius:3px;display:inline-block;}
+
+  /* 連結: 太い青下線＋大きめの下カッコ */
+  .m-link{border-bottom:4px solid var(--link);background:rgba(37,99,235,.08);border-radius:5px;}
+  .gap{display:inline-block;width:14px;text-align:center;color:#cbcbcb;cursor:pointer;font-weight:700;user-select:none;font-size:22px;}
+  .gap.link-on{color:var(--link);font-size:40px;line-height:.4;vertical-align:-10px;}
+
+  /* 消失: 括弧でくくり、文字を薄く赤 */
+  .paren{color:var(--del);font-weight:800;font-size:.9em;vertical-align:1px;}
+  .m-del-char{color:var(--del);opacity:.4;}
+
+  /* フラップt: 弱く発音 → グレー＋白フチ、細い緑の点線 */
+  .m-flap{color:var(--flapgray);font-weight:400;
+    text-shadow:0 0 1px #fff,0 0 2px #fff;
+    border-bottom:3px dotted var(--flap);}
+
+  /* 弱形: 紫の波線 */
+  .m-weak{text-decoration:underline wavy var(--weak);text-decoration-thickness:2px;text-underline-offset:5px;}
+
+  .actions{display:flex;gap:8px;margin-top:14px;}
+  .actions button{flex:1;padding:11px;font-size:13px;}
+  .btn-check{background:var(--orange);color:#fff;}
+  .btn-reveal{background:#fff;border:1.5px solid #bbb;color:#555;}
+  .result{font-size:13px;margin-top:10px;padding:10px 12px;border-radius:9px;}
+  .result.ok{background:#e7f6ec;color:#137a36;}
+  .result.miss{background:#fdeaea;color:#b42424;}
+  .result ul{margin:6px 0 0;padding-left:18px;}
+
+  .hidden{display:none;}
+  .full-chunk{padding:12px 0;border-bottom:1px dashed #ddd;}
+  details{margin-top:8px;} summary{font-size:12px;color:var(--orange);cursor:pointer;}
+
+  /* 保存リスト */
+  .saved-row{display:flex;align-items:center;gap:6px;padding:8px;border:1px solid #eee;border-radius:10px;margin-bottom:8px;background:#fff;}
+  .saved-row .nm{flex:1;font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .saved-row .meta{font-size:10px;color:#999;font-weight:400;}
+  .iconbtn{background:#f0f0f0;color:#555;padding:7px 9px;font-size:13px;border-radius:8px;}
+  .iconbtn.danger{background:#fdecec;color:var(--del);}
+  .iconbtn.go{background:var(--orange);color:#fff;}
+  .sec-title{font-size:13px;font-weight:700;color:#555;margin:16px 0 8px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>シャドーイング 音変化トレーナー</h1>
+  <p>連結・消失・フラップt・弱形 を判定 / スクリプトを保存して練習</p>
+</header>
+
+<div id="popup" class="popup-overlay" onclick="hidePopup()">
+  <div class="popup-card" onclick="event.stopPropagation()" id="popupCard"></div>
+</div>
+
+<div class="wrap">
+
+  <!-- INPUT -->
+  <div id="inputView">
+    <div class="card">
+      <input type="text" id="scriptName" placeholder="タイトル（任意）例: Lesson 3 会話" style="margin-bottom:8px">
+      <textarea id="scriptInput" placeholder="ここに英語スクリプトを貼り付け&#10;例: I'd like to stand up and take care of it. Could you give it to him?"></textarea>
+      <div style="height:10px"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary" style="flex:2" onclick="saveAndStart()">保存して開始</button>
+        <button class="btn-ghost" style="flex:1" onclick="startOnly()">保存せず開始</button>
+      </div>
+      <details>
+        <summary>サンプルを入れる</summary>
+        <div style="margin-top:8px"><button class="btn-ghost" onclick="useSample()">サンプル文をセット</button></div>
+      </details>
+    </div>
+
+    <div id="savedListWrap"></div>
+  </div>
+
+  <!-- PRACTICE -->
+  <div id="practiceView" class="hidden">
+    <div class="tabs">
+      <button id="tabStudy" class="active" onclick="setMode('study')">学習モード</button>
+      <button id="tabAll" onclick="setMode('all')">全文（答え）</button>
+    </div>
+
+    <div class="toolnote" style="margin-top:4px">各塊の上のボタンを<b>タップ</b>で選択、<b>長押し</b>でルール表示。</div>
+    <div id="studyArea"></div>
+    <div id="allArea" class="hidden"></div>
+
+    <button class="btn-ghost" style="width:100%;margin-top:6px" onclick="reset()">入力・保存一覧に戻る</button>
+  </div>
+
+</div>
+
+<script>
+/* ===================== 判定エンジン ===================== */
+const VOWELS="aeiou", PLOSIVES="pbkgtd";
+const WEAK_WORDS=new Set(["a","an","the","and","but","or","as","than","that",
+  "to","of","for","from","at","in","on","with","by",
+  "he","him","his","her","she","them","us","your","you","we","my","me",
+  "was","were","is","are","am","be","been","do","does","can","could","would",
+  "should","must","shall","will","had","has","have","there","some"]);
+const stripPunct=w=>w.replace(/^[^A-Za-z']+|[^A-Za-z']+$/g,"");
+const lastLetter=w=>stripPunct(w).toLowerCase().slice(-1);
+const firstLetter=w=>(stripPunct(w).toLowerCase()[0]||"");
+const isVowelStart=w=>VOWELS.includes(firstLetter(w));
+
+function flapPositions(word){
+  const w=stripPunct(word).toLowerCase(),res=[];
+  for(let i=1;i<w.length-1;i++){
+    if(w[i]==='t'&&VOWELS.includes(w[i-1])){
+      if(VOWELS.includes(w[i+1]))res.push(i);
+      else if(w[i+1]==='t'&&VOWELS.includes(w[i+2])){res.push(i);res.push(i+1);}
+    }
+  } return res;
+}
+function delCluster(word){
+  const w=stripPunct(word).toLowerCase(); if(w.length<2)return null;
+  const j=w.length-1;
+  if(w[j]==='e'){ if(PLOSIVES.includes(w[j-1]))return[j-1,j]; return null; }
+  if(PLOSIVES.includes(w[j]))return[j,j];
+  return null;
+}
+function splitChunks(text){
+  text=text.replace(/\s+/g," ").trim();
+  return text.split(/(?<=[\.\?!,;:])\s+/).map(p=>p.trim()).filter(Boolean);
+}
+function analyze(chunk){
+  const raw=chunk.split(" ").filter(Boolean), lc=raw.length-1;
+  const tokens=raw.map((w,i)=>{
+    const core=stripPunct(w), low=core.toLowerCase();
+    const cap=i>0&&/^[A-Z]/.test(core)&&core.length>1;
+    const weak=WEAK_WORDS.has(low)&&i!==lc&&!cap;
+    return {raw:w,core,low,weak,flaps:flapPositions(w),del:delCluster(w)};
+  });
+  const gaps=[],delT=[];
+  for(let i=0;i<tokens.length-1;i++){
+    const a=tokens[i],b=tokens[i+1];let type=null;
+    const la=lastLetter(a.raw),fb=firstLetter(b.raw);
+    if(a.del&&fb&&!VOWELS.includes(fb)) delT.push(i);
+    else if(la&&!VOWELS.includes(la)&&isVowelStart(b.raw)) type="link";
+    gaps.push(type);
+  }
+  return {tokens,gaps,delTokens:new Set(delT)};
+}
+
+/* ===================== 保存（localStorage） ===================== */
+const LS_KEY="shadowing_scripts_v1";
+function loadSaved(){ try{return JSON.parse(localStorage.getItem(LS_KEY))||[];}catch(e){return[];} }
+function persist(list){ localStorage.setItem(LS_KEY,JSON.stringify(list)); }
+function saveScript(name,text){
+  const list=loadSaved();
+  list.unshift({id:Date.now()+"",name:name||("無題 "+new Date().toLocaleString('ja-JP')),text,created:Date.now()});
+  persist(list); return list;
+}
+function deleteScript(id){ persist(loadSaved().filter(s=>s.id!==id)); renderSavedList(); }
+function moveScript(id,dir){
+  const list=loadSaved(); const i=list.findIndex(s=>s.id===id);
+  const j=i+dir; if(i<0||j<0||j>=list.length)return;
+  [list[i],list[j]]=[list[j],list[i]]; persist(list); renderSavedList();
+}
+function renderSavedList(){
+  const wrap=document.getElementById('savedListWrap'); const list=loadSaved();
+  if(!list.length){ wrap.innerHTML=''; return; }
+  let html='<div class="sec-title">保存したスクリプト</div>';
+  list.forEach((s,idx)=>{
+    const dt=new Date(s.created).toLocaleDateString('ja-JP');
+    html+=`<div class="saved-row">
+      <div style="display:flex;flex-direction:column">
+        <button class="iconbtn" onclick="moveScript('${s.id}',-1)" ${idx===0?'disabled style=opacity:.3':''}>▲</button>
+        <button class="iconbtn" onclick="moveScript('${s.id}',1)" ${idx===list.length-1?'disabled style=opacity:.3':''}>▼</button>
+      </div>
+      <div class="nm">${escapeHtml(s.name)}<div class="meta">${dt}</div></div>
+      <button class="iconbtn go" onclick="openSaved('${s.id}')">開く</button>
+      <button class="iconbtn danger" onclick="if(confirm('削除しますか？'))deleteScript('${s.id}')">🗑</button>
+    </div>`;
+  });
+  wrap.innerHTML=html;
+}
+function escapeHtml(s){return s.replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function openSaved(id){
+  const s=loadSaved().find(x=>x.id===id); if(!s)return;
+  startPractice(s.text);
+}
+
+/* ===================== 状態 ===================== */
+let CHUNKS=[], MODE="study";
+const SAMPLE="I'd like to stand up and take care of it. Could you give it to him, and tell her I'll see you later?";
+function useSample(){ document.getElementById('scriptInput').value=SAMPLE; if(!document.getElementById('scriptName').value)document.getElementById('scriptName').value="サンプル"; }
+
+function startPractice(text){
+  CHUNKS=splitChunks(text).map(t=>({text:t,ana:analyze(t),tool:'flap',
+    user:{flap:new Set(),weak:new Set(),gap:{},del:new Set()},checked:false}));
+  document.getElementById('inputView').classList.add('hidden');
+  document.getElementById('practiceView').classList.remove('hidden');
+  setMode('study');
+}
+function startOnly(){
+  const t=document.getElementById('scriptInput').value.trim();
+  if(!t){alert("スクリプトを入力してください");return;} startPractice(t);
+}
+function saveAndStart(){
+  const t=document.getElementById('scriptInput').value.trim();
+  if(!t){alert("スクリプトを入力してください");return;}
+  saveScript(document.getElementById('scriptName').value.trim(),t);
+  startPractice(t);
+}
+function reset(){
+  document.getElementById('practiceView').classList.add('hidden');
+  document.getElementById('inputView').classList.remove('hidden');
+  document.getElementById('scriptInput').value="";
+  document.getElementById('scriptName').value="";
+  renderSavedList();
+}
+
+/* ===================== ツール＆ルール（統合） ===================== */
+const TOOLS=[
+  {id:'flap',name:'フラップt',cls:'t-flap',sym:'t̥',color:'var(--flap)',
+   rule:'母音 + t + 母音 で t がダ行/ラ行の弱い音に',ex:'water → ウォラ / better → ベラ'},
+  {id:'weak',name:'弱形',cls:'t-weak',sym:'∿',color:'var(--weak)',
+   rule:'機能語を非常に弱く発音（文末など強調位置を除く）',ex:'him → イm / her → アー'},
+  {id:'link',name:'連結',cls:'t-link',sym:'‿',color:'var(--link)',
+   rule:'子音 + 母音 でつながる',ex:'stand up → スタンダッ / like it → ライキッ'},
+  {id:'del',name:'消失',cls:'t-del',sym:'( )',color:'var(--del)',
+   rule:'破裂音(p,b,k,g,t,d) + 子音 で破裂音が消える',ex:'good morning → グッモーニン / take care → テイケア'},
+  {id:'erase',name:'消す',cls:'t-erase',sym:'⌫',color:'#555'},
+];
+function pickTool(ci,id){ CHUNKS[ci].tool=id; renderStudy(); }
+function showPopup(id){
+  const t=TOOLS.find(x=>x.id===id); if(!t||!t.rule)return;
+  document.getElementById('popupCard').innerHTML=
+    `<div class="ttl"><span class="sym" style="color:${t.color}">${t.sym}</span>${t.name}</div>
+     <div class="rl">${t.rule}</div>
+     <div class="ex">例: ${t.ex}</div>
+     <div class="cl"><button onclick="hidePopup()">閉じる</button></div>`;
+  document.getElementById('popup').classList.add('show');
+}
+function hidePopup(){ document.getElementById('popup').classList.remove('show'); }
+
+// タップ=選択 / 長押し=ルール表示 のツールバーDOMを生成（チャンクごとに独立）
+function makeToolbar(ci){
+  const bar=document.createElement('div'); bar.className='toolbar';
+  TOOLS.forEach(t=>{
+    const b=document.createElement('button');
+    b.className='tbtn '+t.cls+(CHUNKS[ci].tool===t.id?' active':'')+(t.rule?' hasrule':'');
+    b.innerHTML=`<span class="s">${t.sym}</span>${t.name}`;
+    let timer=null, longed=false;
+    const start=()=>{ longed=false; if(t.rule) timer=setTimeout(()=>{ longed=true; showPopup(t.id); },450); };
+    const cancel=()=>{ if(timer){clearTimeout(timer);timer=null;} };
+    b.addEventListener('touchstart',start,{passive:true});
+    b.addEventListener('touchend',e=>{ cancel(); if(longed){e.preventDefault();} });
+    b.addEventListener('touchmove',cancel,{passive:true});
+    b.addEventListener('mousedown',start);
+    b.addEventListener('mouseup',cancel);
+    b.addEventListener('mouseleave',cancel);
+    b.addEventListener('click',()=>{ if(longed){longed=false;return;} pickTool(ci,t.id); });
+    bar.appendChild(b);
+  });
+  return bar;
+}
+
+/* ===================== 単語スパン生成 ===================== */
+function buildWord(tok,flapIdxSet,delOn,onChar){
+  const wspan=document.createElement('span'); wspan.className='tok';
+  const w=tok.raw,core=tok.core,start=w.indexOf(core),cl=tok.del;
+  for(let k=0;k<w.length;k++){
+    const coreIdx=k-start;
+    if(delOn&&cl&&coreIdx===cl[0]){const o=document.createElement('span');o.className='paren';o.textContent='(';wspan.appendChild(o);}
+    const ch=document.createElement('span'); ch.textContent=w[k];
+    if(onChar) ch.onclick=e=>{e.stopPropagation();onChar(coreIdx);};
+    if(coreIdx>=0&&flapIdxSet&&flapIdxSet.has(coreIdx)) ch.classList.add('m-flap');
+    if(delOn&&cl&&coreIdx>=cl[0]&&coreIdx<=cl[1]) ch.classList.add('m-del-char');
+    wspan.appendChild(ch);
+    if(delOn&&cl&&coreIdx===cl[1]){const c=document.createElement('span');c.className='paren';c.textContent=')';wspan.appendChild(c);}
+  }
+  return wspan;
+}
+function flapIdxFor(set,ti){const s=new Set();set.forEach(k=>{const[a,b]=k.split(":");if(+a===ti)s.add(+b);});return s;}
+
+/* ===================== モード切替 ===================== */
+function setMode(m){
+  MODE=m;
+  document.getElementById('tabStudy').classList.toggle('active',m==='study');
+  document.getElementById('tabAll').classList.toggle('active',m==='all');
+  document.getElementById('studyArea').classList.toggle('hidden',m!=='study');
+  document.getElementById('allArea').classList.toggle('hidden',m!=='all');
+  if(m==='study')renderStudy(); else renderAll();
+}
+
+/* ===================== 学習モード ===================== */
+function renderStudy(){
+  const area=document.getElementById('studyArea'); area.innerHTML="";
+  CHUNKS.forEach((c,ci)=>{
+    const card=document.createElement('div'); card.className='card';
+    card.innerHTML=`<div class="chunk-num">塊 ${ci+1} / ${CHUNKS.length}</div>`;
+    card.appendChild(makeToolbar(ci));
+    const line=document.createElement('div'); line.className='chunk-text';
+    c.ana.tokens.forEach((tok,ti)=>{
+      const wspan=buildWord(tok,flapIdxFor(c.user.flap,ti),c.user.del.has(ti),
+        coreIdx=>onCharTap(ci,ti,coreIdx));
+      if(c.user.weak.has(ti)) wspan.classList.add('m-weak');
+      wspan.addEventListener('click',()=>{ if(['weak','del','erase'].includes(c.tool))onWordTap(ci,ti); });
+      line.appendChild(wspan);
+      if(ti<c.ana.tokens.length-1){
+        const g=document.createElement('span'); g.className='gap';
+        if(c.user.gap[ti]==='link'){g.classList.add('link-on');g.textContent='‿';}else g.textContent='·';
+        g.onclick=()=>onGapTap(ci,ti);
+        line.appendChild(g);
+      }
+    });
+    card.appendChild(line);
+    const act=document.createElement('div'); act.className='actions';
+    act.innerHTML=`<button class="btn-check" onclick="checkChunk(${ci})">答え合わせ</button>
+                   <button class="btn-reveal" onclick="revealChunk(${ci})">答えを表示</button>`;
+    card.appendChild(act);
+    const res=document.createElement('div'); res.id='res'+ci;
+    if(c.checked)res.innerHTML=c.resultHTML||"";
+    card.appendChild(res);
+    area.appendChild(card);
+  });
+}
+function onCharTap(ci,ti,coreIdx){
+  if(coreIdx<0)return; const c=CHUNKS[ci],key=ti+":"+coreIdx;
+  if(c.tool==='flap'){ c.user.flap.has(key)?c.user.flap.delete(key):c.user.flap.add(key); renderStudy(); }
+  else if(c.tool==='erase'){ c.user.flap.delete(key); onWordTap(ci,ti); }
+  else if(c.tool==='weak'||c.tool==='del'){ onWordTap(ci,ti); }
+}
+function onWordTap(ci,ti){
+  const c=CHUNKS[ci];
+  if(c.tool==='weak'){ c.user.weak.has(ti)?c.user.weak.delete(ti):c.user.weak.add(ti); renderStudy(); }
+  else if(c.tool==='del'){ c.user.del.has(ti)?c.user.del.delete(ti):c.user.del.add(ti); renderStudy(); }
+  else if(c.tool==='erase'){ c.user.weak.delete(ti);c.user.del.delete(ti); renderStudy(); }
+}
+function onGapTap(ci,ti){
+  const c=CHUNKS[ci];
+  if(c.tool==='link'){ c.user.gap[ti]=c.user.gap[ti]==='link'?null:'link'; renderStudy(); }
+  else if(c.tool==='erase'){ c.user.gap[ti]=null; renderStudy(); }
+}
+
+/* ===================== 採点 ===================== */
+function correctAnswers(c){
+  const flap=new Set(),weak=new Set(),gap={},del=new Set(c.ana.delTokens);
+  c.ana.tokens.forEach((tok,ti)=>{ tok.flaps.forEach(idx=>flap.add(ti+":"+idx)); if(tok.weak)weak.add(ti); });
+  c.ana.gaps.forEach((g,i)=>{ if(g)gap[i]=g; });
+  return {flap,weak,gap,del};
+}
+function checkChunk(ci){
+  const c=CHUNKS[ci],ans=correctAnswers(c); let correct=0,total=0,misses=[];
+  const wn=ti=>c.ana.tokens[ti].core;
+  ans.flap.forEach(k=>{total++;if(c.user.flap.has(k))correct++;else misses.push('フラップt の付け忘れ: '+wn(+k.split(":")[0]));});
+  c.user.flap.forEach(k=>{if(!ans.flap.has(k))misses.push('余分なフラップt');});
+  ans.weak.forEach(k=>{total++;if(c.user.weak.has(k))correct++;else misses.push('弱形の付け忘れ: '+wn(k));});
+  c.user.weak.forEach(k=>{if(!ans.weak.has(k))misses.push('余分な弱形: '+wn(k));});
+  ans.del.forEach(k=>{total++;if(c.user.del.has(k))correct++;else misses.push('消失の付け忘れ: '+wn(k));});
+  c.user.del.forEach(k=>{if(!ans.del.has(k))misses.push('余分な消失: '+wn(k));});
+  Object.entries(ans.gap).forEach(([i,t])=>{total++;if(c.user.gap[i]===t)correct++;else misses.push('連結の付け忘れ: '+wn(+i)+'‿'+wn(+i+1));});
+  Object.entries(c.user.gap).forEach(([i,t])=>{if(t&&ans.gap[i]!==t)misses.push('余分な連結');});
+  const ok=misses.length===0, pct=total?Math.round(correct/total*100):100;
+  let html=`<div class="result ${ok?'ok':'miss'}">`;
+  html+= ok?`✅ 完璧！ ${correct}/${total} 正解`
+           :`正解 ${correct}/${total}（${pct}%）<ul>`+[...new Set(misses)].map(m=>`<li>${m}</li>`).join("")+`</ul>`;
+  html+=`</div>`;
+  c.checked=true; c.resultHTML=html; document.getElementById('res'+ci).innerHTML=html;
+}
+function revealChunk(ci){
+  const c=CHUNKS[ci],ans=correctAnswers(c);
+  c.user.flap=new Set(ans.flap); c.user.weak=new Set(ans.weak); c.user.del=new Set(ans.del);
+  c.user.gap={}; Object.entries(ans.gap).forEach(([i,t])=>c.user.gap[i]=t);
+  renderStudy();
+  setTimeout(()=>{const r=document.getElementById('res'+ci);if(r)r.innerHTML=`<div class="result ok">答えを表示しました。記号を確認しましょう。</div>`;},0);
+}
+
+/* ===================== 全文（答え） ===================== */
+function renderAll(){
+  const area=document.getElementById('allArea'); area.innerHTML="";
+  const card=document.createElement('div'); card.className='card';
+  CHUNKS.forEach(c=>{
+    const ans=correctAnswers(c);
+    const div=document.createElement('div'); div.className='full-chunk chunk-text';
+    c.ana.tokens.forEach((tok,ti)=>{
+      const wspan=buildWord(tok,flapIdxFor(ans.flap,ti),ans.del.has(ti),null);
+      if(ans.weak.has(ti))wspan.classList.add('m-weak');
+      div.appendChild(wspan);
+      if(ti<c.ana.tokens.length-1){
+        const g=document.createElement('span'); g.className='gap';
+        if(ans.gap[ti]==='link'){g.classList.add('link-on');g.textContent='‿';}else g.textContent=' ';
+        div.appendChild(g);
+      }
+    });
+    card.appendChild(div);
+  });
+  area.appendChild(card);
+}
+
+/* 初期表示 */
+renderSavedList();
+</script>
+</body>
+</html>
