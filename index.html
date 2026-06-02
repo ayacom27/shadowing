@@ -32,10 +32,19 @@
   .tabs button.active{background:var(--orange);color:#fff;}
 
   /* ツールバー（各チャンクの上） */
-  .toolbar{padding:0 0 7px;display:flex;gap:4px;flex-wrap:nowrap;}
+  .toolbar{padding:0 0 5px;display:flex;gap:4px;flex-wrap:nowrap;}
   .tbtn{flex:1;min-width:0;padding:6px 2px;font-size:10px;border:1.5px solid #ddd;background:#fff;color:#444;border-radius:8px;position:relative;user-select:none;line-height:1.2;}
   .tbtn .s{font-size:14px;display:block;margin-bottom:0;}
   .tbtn.hasrule::after{content:"?";position:absolute;top:2px;right:4px;font-size:8px;color:#bbb;}
+  .tbtn.active{font-weight:800;transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.28);}
+  .tbtn.active::before{content:"●";position:absolute;top:2px;left:4px;font-size:7px;color:#fff;}
+  .tbtn.active.t-link{background:var(--link);color:#fff;border-color:transparent;}
+  .tbtn.active.t-del{background:var(--del);color:#fff;border-color:transparent;}
+  .tbtn.active.t-flap{background:var(--flap);color:#fff;border-color:transparent;}
+  .tbtn.active.t-weak{background:var(--weak);color:#fff;border-color:transparent;}
+  .tbtn.active.t-erase{background:#555;color:#fff;border-color:transparent;}
+  .sel-label{font-size:11px;color:#666;margin:-1px 0 7px;}
+  .sel-label b{font-size:12px;}
 
   /* ルールのポップアップ */
   .popup-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;
@@ -79,7 +88,6 @@
   .result ul{margin:5px 0 0;padding-left:16px;}
 
   .hidden{display:none;}
-  .full-chunk{padding:7px 0;border-bottom:1px dashed #ddd;}
   details{margin-top:7px;} summary{font-size:12px;color:var(--orange);cursor:pointer;}
   .toolnote{font-size:11px;color:var(--gray);}
 
@@ -128,9 +136,9 @@
   <div id="practiceView" class="hidden">
     <div class="tabs">
       <button id="tabStudy" class="active" onclick="setMode('study')">学習モード</button>
-      <button id="tabAll" onclick="setMode('all')">全文（答え）</button>
+      <button id="tabAll" onclick="setMode('all')">全文（編集可）</button>
     </div>
-    <div class="toolnote" style="margin-bottom:6px">各塊の上のボタンを<b>タップ</b>で選択、<b>長押し</b>でルール表示。</div>
+    <div class="toolnote" style="margin-bottom:6px">ボタンを<b>タップ</b>で選択（選択中が色で表示）、<b>長押し</b>でルール表示。</div>
     <div id="studyArea"></div>
     <div id="allArea" class="hidden"></div>
     <button class="btn-ghost" style="width:100%;margin-top:4px" onclick="reset()">入力・保存一覧に戻る</button>
@@ -232,7 +240,7 @@ const SAMPLE="I'd like to stand up and take care of it. Could you give it to him
 function useSample(){ document.getElementById('scriptInput').value=SAMPLE; if(!document.getElementById('scriptName').value)document.getElementById('scriptName').value="サンプル"; }
 
 function startPractice(text){
-  CHUNKS=splitChunks(text).map(t=>({text:t,ana:analyze(t),tool:'flap',
+  CHUNKS=splitChunks(text).map(t=>({text:t,ana:analyze(t),tool:'flap',editTool:'flap',edit:null,
     user:{flap:new Set(),weak:new Set(),gap:{},del:new Set()},checked:false}));
   document.getElementById('inputView').classList.add('hidden');
   document.getElementById('practiceView').classList.remove('hidden');
@@ -251,7 +259,7 @@ function reset(){
   renderSavedList();
 }
 
-/* ===================== ツール＆ルール（統合） ===================== */
+/* ===================== ツール＆ルール ===================== */
 const TOOLS=[
   {id:'flap',name:'フラップt',cls:'t-flap',sym:'t̥',color:'var(--flap)',
    rule:'母音 + t + 母音 で t がダ行/ラ行の弱い音に',ex:'water → ウォラ / better → ベラ'},
@@ -263,7 +271,10 @@ const TOOLS=[
    rule:'破裂音(p,b,k,g,t,d) + 子音 で破裂音が消える',ex:'good morning → グッモーニン / take care → テイケア'},
   {id:'erase',name:'消す',cls:'t-erase',sym:'⌫',color:'#555'},
 ];
-function pickTool(ci,id){ CHUNKS[ci].tool=id; renderStudy(); }
+function pickTool(ci,id,mode){
+  if(mode==='all'){ CHUNKS[ci].editTool=id; renderAll(); }
+  else { CHUNKS[ci].tool=id; renderStudy(); }
+}
 function showPopup(id){
   const t=TOOLS.find(x=>x.id===id); if(!t||!t.rule)return;
   document.getElementById('popupCard').innerHTML=
@@ -274,11 +285,13 @@ function showPopup(id){
 }
 function hidePopup(){ document.getElementById('popup').classList.remove('show'); }
 
-function makeToolbar(ci){
+function makeToolbar(ci,mode){
+  const cur = mode==='all'?CHUNKS[ci].editTool:CHUNKS[ci].tool;
+  const box=document.createElement('div');
   const bar=document.createElement('div'); bar.className='toolbar';
   TOOLS.forEach(t=>{
     const b=document.createElement('button');
-    b.className='tbtn '+t.cls+(CHUNKS[ci].tool===t.id?' active':'')+(t.rule?' hasrule':'');
+    b.className='tbtn '+t.cls+(cur===t.id?' active':'')+(t.rule?' hasrule':'');
     b.innerHTML=`<span class="s">${t.sym}</span>${t.name}`;
     let timer=null, longed=false;
     const start=()=>{ longed=false; if(t.rule) timer=setTimeout(()=>{ longed=true; showPopup(t.id); },450); };
@@ -289,10 +302,15 @@ function makeToolbar(ci){
     b.addEventListener('mousedown',start);
     b.addEventListener('mouseup',cancel);
     b.addEventListener('mouseleave',cancel);
-    b.addEventListener('click',()=>{ if(longed){longed=false;return;} pickTool(ci,t.id); });
+    b.addEventListener('click',()=>{ if(longed){longed=false;return;} pickTool(ci,t.id,mode); });
     bar.appendChild(b);
   });
-  return bar;
+  box.appendChild(bar);
+  const tt=TOOLS.find(x=>x.id===cur);
+  const lab=document.createElement('div'); lab.className='sel-label';
+  lab.innerHTML=`選択中: <b style="color:${tt.color}">${tt.sym} ${tt.name}</b>`;
+  box.appendChild(lab);
+  return box;
 }
 
 /* ===================== 単語スパン生成 ===================== */
@@ -323,13 +341,24 @@ function setMode(m){
   if(m==='study')renderStudy(); else renderAll();
 }
 
+/* 現在モードに応じた 状態・ツール・再描画 */
+function ctx(ci){
+  const c=CHUNKS[ci];
+  if(MODE==='all'){ ensureEdit(c); return {st:c.edit,tool:c.editTool,rerender:renderAll}; }
+  return {st:c.user,tool:c.tool,rerender:renderStudy};
+}
+function ensureEdit(c){
+  if(!c.edit){ const a=correctAnswers(c);
+    c.edit={flap:new Set(a.flap),weak:new Set(a.weak),gap:Object.assign({},a.gap),del:new Set(a.del)}; }
+}
+
 /* ===================== 学習モード ===================== */
 function renderStudy(){
   const area=document.getElementById('studyArea'); area.innerHTML="";
   CHUNKS.forEach((c,ci)=>{
     const card=document.createElement('div'); card.className='card';
     card.innerHTML=`<div class="chunk-num">塊 ${ci+1} / ${CHUNKS.length}</div>`;
-    card.appendChild(makeToolbar(ci));
+    card.appendChild(makeToolbar(ci,'study'));
     const line=document.createElement('div'); line.className='chunk-text';
     c.ana.tokens.forEach((tok,ti)=>{
       const wspan=buildWord(tok,flapIdxFor(c.user.flap,ti),c.user.del.has(ti),
@@ -356,21 +385,21 @@ function renderStudy(){
   });
 }
 function onCharTap(ci,ti,coreIdx){
-  if(coreIdx<0)return; const c=CHUNKS[ci],key=ti+":"+coreIdx;
-  if(c.tool==='flap'){ c.user.flap.has(key)?c.user.flap.delete(key):c.user.flap.add(key); renderStudy(); }
-  else if(c.tool==='erase'){ c.user.flap.delete(key); onWordTap(ci,ti); }
-  else if(c.tool==='weak'||c.tool==='del'){ onWordTap(ci,ti); }
+  if(coreIdx<0)return; const {st,tool,rerender}=ctx(ci); const key=ti+":"+coreIdx;
+  if(tool==='flap'){ st.flap.has(key)?st.flap.delete(key):st.flap.add(key); rerender(); }
+  else if(tool==='erase'){ st.flap.delete(key); onWordTap(ci,ti); }
+  else if(tool==='weak'||tool==='del'){ onWordTap(ci,ti); }
 }
 function onWordTap(ci,ti){
-  const c=CHUNKS[ci];
-  if(c.tool==='weak'){ c.user.weak.has(ti)?c.user.weak.delete(ti):c.user.weak.add(ti); renderStudy(); }
-  else if(c.tool==='del'){ c.user.del.has(ti)?c.user.del.delete(ti):c.user.del.add(ti); renderStudy(); }
-  else if(c.tool==='erase'){ c.user.weak.delete(ti);c.user.del.delete(ti); renderStudy(); }
+  const {st,tool,rerender}=ctx(ci);
+  if(tool==='weak'){ st.weak.has(ti)?st.weak.delete(ti):st.weak.add(ti); rerender(); }
+  else if(tool==='del'){ st.del.has(ti)?st.del.delete(ti):st.del.add(ti); rerender(); }
+  else if(tool==='erase'){ st.weak.delete(ti);st.del.delete(ti); rerender(); }
 }
 function onGapTap(ci,ti){
-  const c=CHUNKS[ci];
-  if(c.tool==='link'){ c.user.gap[ti]=c.user.gap[ti]==='link'?null:'link'; renderStudy(); }
-  else if(c.tool==='erase'){ c.user.gap[ti]=null; renderStudy(); }
+  const {st,tool,rerender}=ctx(ci);
+  if(tool==='link'){ st.gap[ti]=st.gap[ti]==='link'?null:'link'; rerender(); }
+  else if(tool==='erase'){ st.gap[ti]=null; rerender(); }
 }
 
 /* ===================== 採点 ===================== */
@@ -406,26 +435,36 @@ function revealChunk(ci){
   setTimeout(()=>{const r=document.getElementById('res'+ci);if(r)r.innerHTML=`<div class="result ok">答えを表示しました。記号を確認しましょう。</div>`;},0);
 }
 
-/* ===================== 全文（答え） ===================== */
+/* ===================== 全文（編集可能） ===================== */
 function renderAll(){
   const area=document.getElementById('allArea'); area.innerHTML="";
-  const card=document.createElement('div'); card.className='card';
-  CHUNKS.forEach(c=>{
-    const ans=correctAnswers(c);
-    const div=document.createElement('div'); div.className='full-chunk chunk-text';
+  CHUNKS.forEach((c,ci)=>{
+    ensureEdit(c);
+    const card=document.createElement('div'); card.className='card';
+    card.innerHTML=`<div class="chunk-num">塊 ${ci+1} / ${CHUNKS.length} ・音声に合わせて記号を編集</div>`;
+    card.appendChild(makeToolbar(ci,'all'));
+    const line=document.createElement('div'); line.className='chunk-text';
     c.ana.tokens.forEach((tok,ti)=>{
-      const wspan=buildWord(tok,flapIdxFor(ans.flap,ti),ans.del.has(ti),null);
-      if(ans.weak.has(ti))wspan.classList.add('m-weak');
-      div.appendChild(wspan);
+      const wspan=buildWord(tok,flapIdxFor(c.edit.flap,ti),c.edit.del.has(ti),
+        coreIdx=>onCharTap(ci,ti,coreIdx));
+      if(c.edit.weak.has(ti)) wspan.classList.add('m-weak');
+      wspan.addEventListener('click',()=>{ if(['weak','del','erase'].includes(c.editTool))onWordTap(ci,ti); });
+      line.appendChild(wspan);
       if(ti<c.ana.tokens.length-1){
         const g=document.createElement('span'); g.className='gap';
-        if(ans.gap[ti]==='link'){g.classList.add('link-on');g.textContent='‿';}else g.textContent=' ';
-        div.appendChild(g);
+        if(c.edit.gap[ti]==='link'){g.classList.add('link-on');g.textContent='‿';}else g.textContent='·';
+        g.onclick=()=>onGapTap(ci,ti);
+        line.appendChild(g);
       }
     });
-    card.appendChild(div);
+    card.appendChild(line);
+    const rb=document.createElement('button'); rb.className='btn-reveal';
+    rb.style.cssText='width:100%;margin-top:8px;padding:8px;font-size:12px';
+    rb.textContent='自動判定に戻す';
+    rb.onclick=()=>{ c.edit=null; renderAll(); };
+    card.appendChild(rb);
+    area.appendChild(card);
   });
-  area.appendChild(card);
 }
 
 renderSavedList();
