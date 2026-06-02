@@ -271,8 +271,9 @@ const TOOLS=[
    rule:'破裂音(p,b,k,g,t,d) + 子音 で破裂音が消える',ex:'good morning → グッモーニン / take care → テイケア'},
   {id:'erase',name:'消す',cls:'t-erase',sym:'⌫',color:'#555'},
 ];
+let ALL_TOOL='flap'; // 全文モードは1つの共通ツール
 function pickTool(ci,id,mode){
-  if(mode==='all'){ CHUNKS[ci].editTool=id; renderAll(); }
+  if(mode==='all'){ ALL_TOOL=id; renderAll(); }
   else { CHUNKS[ci].tool=id; renderStudy(); }
 }
 function showPopup(id){
@@ -286,8 +287,7 @@ function showPopup(id){
 function hidePopup(){ document.getElementById('popup').classList.remove('show'); }
 
 function makeToolbar(ci,mode){
-  const cur = mode==='all'?CHUNKS[ci].editTool:CHUNKS[ci].tool;
-  const box=document.createElement('div');
+  const cur = mode==='all'?ALL_TOOL:CHUNKS[ci].tool;
   const bar=document.createElement('div'); bar.className='toolbar';
   TOOLS.forEach(t=>{
     const b=document.createElement('button');
@@ -305,12 +305,7 @@ function makeToolbar(ci,mode){
     b.addEventListener('click',()=>{ if(longed){longed=false;return;} pickTool(ci,t.id,mode); });
     bar.appendChild(b);
   });
-  box.appendChild(bar);
-  const tt=TOOLS.find(x=>x.id===cur);
-  const lab=document.createElement('div'); lab.className='sel-label';
-  lab.innerHTML=`選択中: <b style="color:${tt.color}">${tt.sym} ${tt.name}</b>`;
-  box.appendChild(lab);
-  return box;
+  return bar;
 }
 
 /* ===================== 単語スパン生成 ===================== */
@@ -344,7 +339,7 @@ function setMode(m){
 /* 現在モードに応じた 状態・ツール・再描画 */
 function ctx(ci){
   const c=CHUNKS[ci];
-  if(MODE==='all'){ ensureEdit(c); return {st:c.edit,tool:c.editTool,rerender:renderAll}; }
+  if(MODE==='all'){ ensureEdit(c); return {st:c.edit,tool:ALL_TOOL,rerender:renderAll}; }
   return {st:c.user,tool:c.tool,rerender:renderStudy};
 }
 function ensureEdit(c){
@@ -435,20 +430,24 @@ function revealChunk(ci){
   setTimeout(()=>{const r=document.getElementById('res'+ci);if(r)r.innerHTML=`<div class="result ok">答えを表示しました。記号を確認しましょう。</div>`;},0);
 }
 
-/* ===================== 全文（編集可能） ===================== */
+/* ===================== 全文（まとめて編集可能） ===================== */
 function renderAll(){
   const area=document.getElementById('allArea'); area.innerHTML="";
+  CHUNKS.forEach(ensureEdit);
+  // 上部に共通ツールバー1つ
+  const toolWrap=document.createElement('div');
+  toolWrap.appendChild(makeToolbar(0,'all'));
+  area.appendChild(toolWrap);
+  // 全文を1枚のカードに連続表示
+  const card=document.createElement('div'); card.className='card';
+  card.innerHTML=`<div class="chunk-num">全文・音声に合わせて記号を編集</div>`;
+  const line=document.createElement('div'); line.className='chunk-text';
   CHUNKS.forEach((c,ci)=>{
-    ensureEdit(c);
-    const card=document.createElement('div'); card.className='card';
-    card.innerHTML=`<div class="chunk-num">塊 ${ci+1} / ${CHUNKS.length} ・音声に合わせて記号を編集</div>`;
-    card.appendChild(makeToolbar(ci,'all'));
-    const line=document.createElement('div'); line.className='chunk-text';
     c.ana.tokens.forEach((tok,ti)=>{
       const wspan=buildWord(tok,flapIdxFor(c.edit.flap,ti),c.edit.del.has(ti),
         coreIdx=>onCharTap(ci,ti,coreIdx));
       if(c.edit.weak.has(ti)) wspan.classList.add('m-weak');
-      wspan.addEventListener('click',()=>{ if(['weak','del','erase'].includes(c.editTool))onWordTap(ci,ti); });
+      wspan.addEventListener('click',()=>{ if(['weak','del','erase'].includes(ALL_TOOL))onWordTap(ci,ti); });
       line.appendChild(wspan);
       if(ti<c.ana.tokens.length-1){
         const g=document.createElement('span'); g.className='gap';
@@ -457,14 +456,16 @@ function renderAll(){
         line.appendChild(g);
       }
     });
-    card.appendChild(line);
-    const rb=document.createElement('button'); rb.className='btn-reveal';
-    rb.style.cssText='width:100%;margin-top:8px;padding:8px;font-size:12px';
-    rb.textContent='自動判定に戻す';
-    rb.onclick=()=>{ c.edit=null; renderAll(); };
-    card.appendChild(rb);
-    area.appendChild(card);
+    // 塊の区切りに半角スペース
+    if(ci<CHUNKS.length-1) line.appendChild(document.createTextNode(' '));
   });
+  card.appendChild(line);
+  const rb=document.createElement('button'); rb.className='btn-reveal';
+  rb.style.cssText='width:100%;margin-top:10px;padding:9px;font-size:12px';
+  rb.textContent='全文を自動判定に戻す';
+  rb.onclick=()=>{ CHUNKS.forEach(c=>c.edit=null); renderAll(); };
+  card.appendChild(rb);
+  area.appendChild(card);
 }
 
 renderSavedList();
